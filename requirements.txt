@@ -1,0 +1,27 @@
+# Web Scraping Core Dependencies
+beautifulsoup4==4.13.4      # HTML/XML parsing for web scraping
+selenium==4.33.0            # Web browser automation for dynamic content
+soupsieve==2.7              # CSS selector library for BeautifulSoup
+
+# Data Processing
+polars==1.31.0              # Fast DataFrame library for data manipulation
+
+# HTTP and Network Libraries  
+urllib3==2.4.0              # HTTP client library
+certifi==2025.6.15          # SSL certificate bundle
+idna==3.10                  # Internationalized domain names support
+PySocks==1.7.1              # SOCKS proxy support
+
+# Selenium WebDriver Dependencies
+trio==0.30.0                # Async I/O library for modern Python
+trio-websocket==0.12.2     # WebSocket support for trio
+h11==0.16.0                 # Pure-Python HTTP/1.1 protocol implementation
+outcome==1.3.0.post0       # Capture the outcome of Python function calls
+sniffio==1.3.1             # Detect async library being used
+sortedcontainers==2.4.0    # Sorted list, dict, and set containers
+websocket-client==1.8.0    # WebSocket client library
+wsproto==1.2.0             # WebSocket protocol implementation
+
+# Utility Libraries
+attrs==25.3.0               # Classes without boilerplate
+typing_extensions==4.13.2   # Backported type hints for older Python versions
