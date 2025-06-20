@@ -1,0 +1,3 @@
+# Ignoring everything to not commit copyright infringement
+*
+!.gitignore

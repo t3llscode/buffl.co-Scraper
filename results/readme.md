@@ -1,0 +1,1 @@
+### The data will have file paths, pointing to the media in the /media folder.

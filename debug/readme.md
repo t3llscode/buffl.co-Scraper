@@ -1,0 +1,1 @@
+This folder contains the scripts used for creating the script, mainly 
