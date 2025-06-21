@@ -1,1 +1,0 @@
-# This will take care of sraping the lectures

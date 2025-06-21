@@ -1,11 +1,8 @@
 from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-
-import time
 from bs4 import BeautifulSoup
+import time
+
+from utils_generic import setup_driver
 
 # - - - - - - - - -
 
@@ -20,35 +17,6 @@ def main():
 
     while continue_scraping:
         continue_scraping = scrape_and_save_website(driver)
-
-# - - - - - - - - - -
-
-def setup_driver(url, headless=False):
-    """Set up and return a configured Chrome webdriver"""
-    options = Options()
-    
-    if headless:
-        options.add_argument("--headless")  # Run in headless mode (no GUI)
-    
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    
-    driver = webdriver.Chrome(options=options)
-    
-    try:
-        driver.get(url)
-        print(f"Accessing {url}")
-        
-        WebDriverWait(driver, 10).until( # Wait for page to load
-            EC.presence_of_element_located((By.TAG_NAME, "body"))
-        )
-        
-        print("Browser window opened, returning driver...\n")
-
-    except Exception as e:
-        print(f"Error opening browser: {e}")
-
-    return driver
 
 # - - - - - - - - -
 
