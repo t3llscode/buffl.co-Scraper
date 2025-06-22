@@ -40,7 +40,7 @@ def get_all_cardsets(handler: ActionHandler):
                 "course-text": course["course-text"],
                 "course-href": course["course-href"],
                 "cardset-text": texts[0] if texts else "",
-                "cardset-count": texts[1].replace(" Cards", "") if len(texts) > 1 else 0,
+                "cardset-count": int(texts[1].replace(" Cards", "") if len(texts) > 1 else 0),
                 "cardset-href": b.get_attribute("href")
             })
 

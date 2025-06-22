@@ -1,7 +1,12 @@
 from datetime import datetime
+import hashlib
 import json
 import time
 import os
+import re
+import base64
+import requests
+from urllib.parse import urlparse
 
 from utils_generic import ActionHandler
 
@@ -11,65 +16,89 @@ def extract_cardsets(handler, all_cardsets):
 
     for cardset in all_cardsets:
 
-        print(f"\nProcessing cardset: {cardset['cardset-text']}")
+        count = 0
+        total_results = []
 
-        handler.driver.get(cardset["cardset-href"])
+        while count < cardset["cardset-count"]:
 
-        results = []
+            results = []
 
-        error = True
+            print(f"\nProcessing cardset: {cardset['cardset-text']}")
 
-        # - - - First get to the cardset Overview Page
+            handler.driver.get(cardset["cardset-href"])
 
-        first_rsp = find_goethe_elements(handler)
+            results = []
 
-        if first_rsp["is_card"]:
-            error = leave_card_to_overview(handler)  # clicks the X and on the overview starts a full run through all cards
-        
-        if error:
-            print("⚠️ Unexpected behavior in Navigation to Overview!")
+            error = True
+
+            # - - - First get to the cardset Overview Page
+
+            first_rsp = find_goethe_elements(handler)
+
+            if first_rsp["is_card"]:
+                error = leave_card_to_overview(handler)  # clicks the X and on the overview starts a full run through all cards
+            
+            if error:
+                print("⚠️ Unexpected behavior in Navigation to Overview!")
 
 
-        keep_scraping = True
+            keep_scraping = True
 
-        while keep_scraping:
+            while keep_scraping:
 
-            rsp = find_goethe_elements(handler)
+                rsp = find_goethe_elements(handler)
 
-            if rsp["is_card"]:
-                results.append(rsp)
-                click_to_next(handler, rsp["type"])
-                time.sleep(0.5)
+                if rsp["is_card"]:
+                    # Download images for all card types
+                    if rsp["type"] == "card":
+                        # For regular cards, we need to download images here since extract_card doesn't have handler
+                        rsp["card"] = extract_and_download_pictures(handler, rsp["card"], log=True)
+                    # For multiple-choice cards, images are already downloaded in extract_multiple_choice
+                    
+                    results.append(rsp)
+                    click_to_next(handler, rsp["type"])
+                    time.sleep(0.25)
 
-            if rsp["type"] == "end":
-                print("Reached the end of the cardset.")
-                keep_scraping = False
+                if rsp["type"] == "end":
+                    print("Reached the end of the cardset.")
+                    keep_scraping = False
 
-            if rsp["type"] == "overview" or rsp["type"] == "error":
-                print("⚠️ Unexpected behavior in Extraction, Overview was openend!")
+                if rsp["type"] == "overview" or rsp["type"] == "error":
+                    print("⚠️ Unexpected behavior in Extraction, Overview was openend!")
 
-        # - - - Save the results for this cardset
+            # - - - Save the results for this cardset
 
-        if results:
-            print(f"Extracted {len(results)} cards from the cardset '{cardset['cardset-text']}'.")
+            all_hashs = [r["card"]["hash"] for r in total_results if "hash" in r["card"]]
+            new_count = 0
 
-            # Create timestamp
-            timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M')
+            for result in results:
+                if result["card"]["hash"] not in all_hashs:
+                    total_results.append(result)
+                    new_count += 1
 
-            # Create filename using cardset details for uniqueness
-            filename = f"{timestamp}_{cardset['cardset-text']}_{cardset['cardset-href'].split('/')[-1]}.json"
-            filename = ''.join(c if c.isalnum() or c in ['_', '-', '.'] else '_' for c in filename)
+            print(f"Extracted new {new_count} cards from the cardset '{cardset['cardset-text']}'.")
+            print(f"Total cards extracted so far: {len(total_results)}")
+            print(f"Expected cards in this cardset: {cardset['cardset-count']}")
 
-            # Ensure the output directory exists
-            output_dir = 'results/data'
-            os.makedirs(output_dir, exist_ok=True)
+            count = len(total_results)  # Update count to the number of cards extracted
 
-            # Save results to JSON file
-            output_path = os.path.join(output_dir, filename)
-            with open(output_path, 'w', encoding='utf-8') as f:
-                json.dump(results, f, ensure_ascii=False, indent=2)
+        # Create timestamp
+        timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M')
 
-            print(f"Saved results to {output_path}")
+        # Create filename using cardset details for uniqueness
+        filename = f"{timestamp}_{cardset['cardset-text']}_{cardset['cardset-href'].split('/')[-1]}.json"
+        filename = ''.join(c if c.isalnum() or c in ['_', '-', '.'] else '_' for c in filename)
+
+        # Ensure the output directory exists
+        output_dir = 'results/data'
+        os.makedirs(output_dir, exist_ok=True)
+
+        # Save results to JSON file
+        output_path = os.path.join(output_dir, filename)
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(results, f, ensure_ascii=False, indent=2)
+
+        print(f"Saved results to {output_path}")
 
 # - - - UTILITY - - -
 
@@ -131,18 +160,40 @@ def extract_card(elements):
     
     picture_hrefs = None
 
-    return {
-        "type": "card",
+    # Extract data from elements with error handling
+    try:
+        question_text = elements[0].text.strip()
+        question_html = elements[0].get_attribute("innerHTML").strip()
+        answer_text = elements[1].text.strip()
+        answer_html = elements[1].get_attribute("innerHTML").strip()
+    except Exception as e:
+        print(f"⚠️ Error extracting card data: {e}")
+        # Set empty values if extraction fails
+        question_text = ""
+        question_html = ""
+        answer_text = ""
+        answer_html = ""
+
+    rsp = {
         "question": {
-            "text": elements[0].text.strip(),
-            "html": elements[0].get_attribute("innerHTML").strip()
+            "text": question_text,
+            "html": question_html
         },
         "answer": {
-            "text": elements[1].text.strip(),
-            "html": elements[1].get_attribute("innerHTML").strip()
+            "text": answer_text,
+            "html": answer_html
         },
         "pictures": picture_hrefs
     }
+
+    # Note: Image downloading is handled separately for regular cards
+    # since we don't have the handler here
+    
+    # Create a unique hash from the card content
+    content_to_hash = json.dumps(rsp, sort_keys=True).encode('utf-8')
+    rsp["hash"] = hashlib.md5(content_to_hash).hexdigest()
+    
+    return rsp
 
 
 def extract_multiple_choice(handler: ActionHandler, elements):
@@ -150,30 +201,59 @@ def extract_multiple_choice(handler: ActionHandler, elements):
 
     element = elements[0]  # Assuming the first element is the one we need
 
+    # Extract question data BEFORE clicking anything to avoid stale element reference
+    try:
+        question_text = element.text.strip()
+        question_html = element.get_attribute("innerHTML").strip()
+    except Exception as e:
+        print(f"⚠️ Error extracting question data: {e}")
+        # Try to re-find the element
+        try:
+            elements = handler.get_all_by("class", "goethe-container", timeout=0.5, output=False)
+            if elements:
+                element = elements[0]
+                question_text = element.text.strip()
+                question_html = element.get_attribute("innerHTML").strip()
+            else:
+                question_text = ""
+                question_html = ""
+        except:
+            question_text = ""
+            question_html = ""
+
     # Immediately click the "reveal" button to show the answer
     handler.action_by("class", "flip", "click", timeout=0.5)
 
     answer_elements = handler.get_all_by("class", "mcoptions-select-item", timeout=0.5, output = False)
 
-    picture_hrefs = None
-
     answers = []
     for ans in answer_elements:
-        answers.append({
-            "text": ans.text.strip(),
-            "html": ans.get_attribute("innerHTML").strip(),
-            "is_correct": "correct" in ans.get_attribute("class")  # get all classes and check if it contains "correct"
-        })
+        try:
+            answers.append({
+                "text": ans.text.strip(),
+                "html": ans.get_attribute("innerHTML").strip(),
+                "is_correct": "correct" in ans.get_attribute("class")  # get all classes and check if it contains "correct"
+            })
+        except Exception as e:
+            print(f"⚠️ Error extracting answer data: {e}")
+            # Skip this answer if we can't extract it
+            continue
 
-    return {
-        "type": "multiple-choice",
+    rsp = {
         "question": {
-            "text": element.text.strip(),
-            "html": element.get_attribute("innerHTML").strip()
+            "text": question_text,
+            "html": question_html
         },
-        "answers": answers,
-        "pictures": picture_hrefs
+        "answers": answers
     }
+
+    rsp = extract_and_download_pictures(handler, rsp, log=True)
+
+    # Create a unique hash from the card content
+    content_to_hash = json.dumps(rsp, sort_keys=True).encode('utf-8')
+    rsp["hash"] = hashlib.md5(content_to_hash).hexdigest()
+    
+    return rsp
     
 
 def leave_card_to_overview(handler: ActionHandler):
@@ -196,7 +276,7 @@ def leave_card_to_overview(handler: ActionHandler):
     return True  # TOOD: Maybe throw an exception here to stop the process?
         
 
-def click_icon(handler: ActionHandler, occurence: int):   
+def click_icon(handler: ActionHandler, occurence: int):
     button_elements = handler.get_all_by("class", "btn-icon-only", timeout=0.5, output = False)
 
     if len(button_elements) < occurence:
@@ -216,11 +296,233 @@ def click_to_next(handler: ActionHandler, type: str):
     """
     Clicks the "next" button to go to the next card or multiple-choice question.
     """
-    if type == "card":
-        click_icon(handler, 5)  # Click the "next / wrong" button for a normal card
-    
-    elif type == "multiple-choice":
+    if type == "multiple-choice":
         handler.action_by("class", "flip", "click", timeout=0.5)  # Click the "flip" button for a multiple-choice question
+        
+    elif type == "card":
+        click_icon(handler, 5)  # Click the "next / wrong" button for a normal card
     
     else:
         print(f"⚠️ Unexpected type '{type}' in click_to_next!")
+
+    
+def extract_and_download_pictures(handler: ActionHandler, rsp, log: bool = False) -> dict:
+    """
+    Extract and download pictures from card content, replacing URLs with local paths.
+    
+    Args:
+        handler: ActionHandler instance for downloading images (uses driver's cookies)
+        rsp: Card response dictionary containing HTML content
+        log: Whether to print debug information (default: False)
+        
+    Returns:
+        Updated dictionary with local image paths
+    """
+    import re
+    import os
+    import base64
+    from urllib.parse import urlparse
+    
+    # Convert response to string for searching
+    rsp_str = json.dumps(rsp, ensure_ascii=False)
+    
+    if log:
+        print(f"Debug: Searching for images in JSON string (first 500 chars): {rsp_str[:500]}")
+    
+    # Multiple patterns to catch different image URL formats
+    patterns = [
+        # Pattern for escaped quotes in JSON
+        r'src=\\"(https://[^"]*\\.(?:png|jpg|jpeg|gif|webp|svg)[^"]*)\\"',
+        # Pattern for regular quotes
+        r'src="(https://[^"]*\.(?:png|jpg|jpeg|gif|webp|svg)[^"]*)"',
+        # Pattern for single quotes
+        r"src='(https://[^']*\.(?:png|jpg|jpeg|gif|webp|svg)[^']*)'",
+        # Pattern without quotes (less likely but possible)
+        r'src=(https://[^\s>]*\.(?:png|jpg|jpeg|gif|webp|svg)[^\s>]*)',
+        # More general pattern for any image URL
+        r'(https://[^\s"\'<>]*\.(?:png|jpg|jpeg|gif|webp|svg)(?:\?[^\s"\'<>]*)?)',
+    ]
+    
+    all_matches = []
+    for pattern in patterns:
+        matches = re.findall(pattern, rsp_str, re.IGNORECASE)
+        if matches:
+            if log:
+                print(f"Found {len(matches)} matches with pattern: {pattern}")
+            # Some patterns return tuples, others return strings
+            for match in matches:
+                if isinstance(match, tuple):
+                    # Take the first group (the URL)
+                    url = match[0] if match[0] else (match[1] if len(match) > 1 else match)
+                else:
+                    url = match
+                if url and url not in all_matches:
+                    all_matches.append(url)
+    
+    if not all_matches:
+        if log:
+            print("No images found in card content")
+        return rsp
+    
+    # Use all found URLs
+    image_urls = all_matches
+    
+    if log:
+        print(f"Found {len(image_urls)} images to download")
+    
+    # Ensure media directory exists
+    media_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'results', 'media')
+    os.makedirs(media_dir, exist_ok=True)
+    
+    # Process each image URL
+    url_mapping = {}
+    
+    for image_url in image_urls:
+        try:
+            # Extract filename from URL
+            parsed_url = urlparse(image_url)
+            filename = os.path.basename(parsed_url.path)
+            
+            # If no filename, create one from URL hash
+            if not filename or '.' not in filename:
+                url_hash = hashlib.md5(image_url.encode()).hexdigest()[:8]
+                filename = f"{url_hash}.png"
+            
+            # Ensure we have an extension
+            if '.' not in filename:
+                filename += '.png'
+            
+            local_path = os.path.join(media_dir, filename)
+            
+            # Download image if not already exists
+            if not os.path.exists(local_path):
+                if log:
+                    print(f"Downloading: {image_url}")
+                
+                try:
+                    # Method 1: Use handler's driver to download with cookies in a new tab
+                    # Store current window handle
+                    current_window = handler.driver.current_window_handle
+                    
+                    # Open image in new tab
+                    handler.driver.execute_script(f"window.open('{image_url}', '_blank');")
+                    
+                    # Switch to the new tab
+                    new_window = None
+                    for window_handle in handler.driver.window_handles:
+                        if window_handle != current_window:
+                            new_window = window_handle
+                            break
+                    
+                    if new_window:
+                        handler.driver.switch_to.window(new_window)
+                        time.sleep(1)  # Wait for image to load
+                        
+                        # Get image data as base64
+                        image_data = handler.driver.execute_script("""
+                            var canvas = document.createElement('canvas');
+                            var ctx = canvas.getContext('2d');
+                            var img = document.getElementsByTagName('img')[0];
+                            if (img && img.complete && img.naturalWidth > 0) {
+                                canvas.width = img.naturalWidth;
+                                canvas.height = img.naturalHeight;
+                                ctx.drawImage(img, 0, 0);
+                                return canvas.toDataURL().split(',')[1];
+                            }
+                            return null;
+                        """)
+                        
+                        # Close the new tab and switch back to original
+                        handler.driver.close()
+                        handler.driver.switch_to.window(current_window)
+                    else:
+                        if log:
+                            print(f"⚠️ Could not open new tab for: {image_url}")
+                        image_data = None
+                    
+                    if image_data:
+                        # Decode base64 and save
+                        with open(local_path, 'wb') as f:
+                            f.write(base64.b64decode(image_data))
+                        
+                        if log:
+                            print(f"✓ Saved: {filename}")
+                    else:
+                        # Method 2: Try direct request with session cookies
+                        if log:
+                            print(f"⚠️ Canvas method failed, trying direct request for: {image_url}")
+                        
+                        # Get cookies from selenium driver
+                        cookies = handler.driver.get_cookies()
+                        session = requests.Session()
+                        for cookie in cookies:
+                            session.cookies.set(cookie['name'], cookie['value'])
+                        
+                        # Add headers to mimic browser
+                        headers = {
+                            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                            'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
+                            'Accept-Language': 'en-US,en;q=0.9',
+                            'Accept-Encoding': 'gzip, deflate, br',
+                            'Connection': 'keep-alive',
+                            'Upgrade-Insecure-Requests': '1',
+                        }
+                        
+                        response = session.get(image_url, headers=headers, timeout=10)
+                        if response.status_code == 200 and len(response.content) > 0:
+                            with open(local_path, 'wb') as f:
+                                f.write(response.content)
+                            if log:
+                                print(f"✓ Saved via direct request: {filename}")
+                        else:
+                            if log:
+                                print(f"⚠️ Direct request failed ({response.status_code}), keeping original URL: {image_url}")
+                            url_mapping[image_url] = image_url  # Keep original URL
+                            continue
+                            
+                except Exception as e:
+                    if log:
+                        print(f"⚠️ Both download methods failed for {image_url}: {e}")
+                    url_mapping[image_url] = image_url  # Keep original URL
+                    continue
+            else:
+                if log:
+                    print(f"✓ Already exists: {filename}")
+            
+            # Store mapping for URL replacement
+            relative_path = f"results/media/{filename}"
+            url_mapping[image_url] = relative_path
+            
+        except Exception as e:
+            if log:
+                print(f"❌ Failed to download {image_url}: {e}")
+            # Keep original URL if download fails
+            url_mapping[image_url] = image_url
+    
+    # Replace URLs in the response with local paths
+    updated_rsp_str = rsp_str
+    replacement_count = 0
+    for original_url, local_path in url_mapping.items():
+        if original_url in updated_rsp_str:
+            updated_rsp_str = updated_rsp_str.replace(original_url, local_path)
+            replacement_count += 1
+            if log:
+                print(f"  ✓ Replaced {original_url} -> {local_path}")
+        elif log:
+            print(f"  ⚠️ URL not found in response: {original_url}")
+    
+    if log:
+        print(f"Made {replacement_count} URL replacements")
+    
+    # Convert back to dictionary
+    try:
+        updated_rsp = json.loads(updated_rsp_str)
+        if log:
+            successful_downloads = len([v for v in url_mapping.values() if v.startswith('results/')])
+            print(f"✓ Successfully processed {successful_downloads} image URLs with local paths")
+        return updated_rsp
+    except json.JSONDecodeError as e:
+        if log:
+            print(f"❌ Failed to parse updated JSON: {e}")
+            print(f"JSON content (first 500 chars): {updated_rsp_str[:500]}")
+        return rsp  # Return original if parsing fails
