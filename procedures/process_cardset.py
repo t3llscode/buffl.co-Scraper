@@ -1,12 +1,9 @@
 from datetime import datetime
+import requests
 import hashlib
 import json
 import time
 import os
-import re
-import base64
-import requests
-from urllib.parse import urlparse
 
 from utils_generic import ActionHandler
 

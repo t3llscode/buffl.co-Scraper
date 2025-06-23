@@ -1,23 +1,8 @@
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import WebDriverWait
 from credentials.credentials import email, password
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.common.by import By
-from selenium.webdriver import ActionChains
-from urllib.parse import urljoin
-from selenium import webdriver
-import platform
-import requests
-import time
-import json
-import uuid
-import os
 
 from utils_generic import ActionHandler, setup_driver
-from utils_specific import click_fourth_by
 from procedures.obtain_cardsets import get_all_cardsets, cardsets_information
 from procedures.process_cardset import extract_cardsets
-
 
 # - - - CONFIGURATION - - -
 
