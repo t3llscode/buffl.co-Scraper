@@ -227,6 +227,8 @@ def extract_multiple_choice(handler: ActionHandler, elements):
 
     answer_elements = handler.get_all_by("class", "mcoptions-select-item", timeout=0.5, output = False)
 
+    picture_hrefs = None
+
     answers = []
     for ans in answer_elements:
         try:
@@ -245,7 +247,8 @@ def extract_multiple_choice(handler: ActionHandler, elements):
             "text": question_text,
             "html": question_html
         },
-        "answers": answers
+        "answers": answers,
+        "pictures": picture_hrefs
     }
 
     rsp = extract_and_download_pictures(handler, rsp, log=True)
@@ -518,6 +521,12 @@ def extract_and_download_pictures(handler: ActionHandler, rsp, log: bool = False
     # Convert back to dictionary
     try:
         updated_rsp = json.loads(updated_rsp_str)
+
+        # Add picture paths to the 'pictures' field
+        picture_paths = [path for path in url_mapping.values() if path and path.startswith('results/media/')]
+        if picture_paths:
+            updated_rsp['pictures'] = picture_paths
+
         if log:
             successful_downloads = len([v for v in url_mapping.values() if v.startswith('results/')])
             print(f"✓ Successfully processed {successful_downloads} image URLs with local paths")
