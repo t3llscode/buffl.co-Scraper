@@ -3,7 +3,7 @@
 ### Want to learn at your own pace - and with your own data?
 
 Unfortunately [Buffl.co](https://buffl.co) does not offer any export, so I built one.
-This little script will scrape all your learning card sets available on your account.
+This little script will scrape all your learning card sets available on your Buffl.co account.
 
 ## Setup
 
@@ -24,13 +24,13 @@ This little script will scrape all your learning card sets available on your acc
    ```bash
    pip install -r requirements.txt
    ```
-5. run `_main.py`
+5. Run `_main.py`
 
 ## Output
 
-For each set you'll get a json file in thie directory / format: `results/data/YYYY-MM-DD_HH-MM_Card_Set_Name.json`
+For each set you'll get a json file in the directory / format: `results/data/YYYY-MM-DD_HH-MM_Card_Set_Name.json`
 
-This file contains an object like below for every card in the set. For ease of use and further usage of the data I kept the original html of the card. Image links are automatically replaced to point to the `media` directory, which holds all the downloaded pictures. There is also a list of all image paths.
+This file contains a list like below with an object for each card in the set. For ease of use and further usage of the data I kept the original html of the card. Image links are automatically replaced to point to the `media` directory, which holds all the downloaded pictures. There is also a list of all image paths.
 
 ```json
 [
@@ -39,8 +39,8 @@ This file contains an object like below for every card in the set. For ease of u
     "type": "card", // either 'card' or 'multiple-choice'
     "card": {
       "question": {
-        "text": "What is your favorite tool to get learning cards from buffl.co?",
-        "html": "<div><div class=\"goethe-image2\"><div class=\"image-wrapper2\"><div><img tabindex=\"0\" src=\"results/media/f6aa1f60-239e-11e9-b6b1-0fbb16611da6.png\" class=\"img\" style=\"cursor: zoom-in; opacity: 1; border-radius: 12px; width: auto;\"></div></div></div><p><span>What is your favorite tool to get learning cards from buffl.co? </span></p></div>"
+        "text": "What is your favorite tool to get learning cards from Buffl.co?",
+        "html": "<div><div class=\"goethe-image2\"><div class=\"image-wrapper2\"><div><img tabindex=\"0\" src=\"results/media/f6aa1f60-239e-11e9-b6b1-0fbb16611da6.png\" class=\"img\" style=\"cursor: zoom-in; opacity: 1; border-radius: 12px; width: auto;\"></div></div></div><p><span>What is your favorite tool to get learning cards from Buffl.co? </span></p></div>"
       },
       "answer": {
         "text": "Of course it's `t3llscode/buffl.co-Scraper` which has the following, awesome features: \nScraping Learning Cards \nScraping Multiple Choice Questions \nDownloading Images",
@@ -54,7 +54,7 @@ This file contains an object like below for every card in the set. For ease of u
     "type": "multiple-choice", // either 'card' or 'multiple-choice'
     "card": {
       "question": {
-        "text": "What feature would you like next for the `t3llscode/buffl.co-Scraper`?",
+        "text": "What features would you like next for the `t3llscode/buffl.co-Scraper`?",
         "html": "<div><p><span>What feature would you like next for the `t3llscode/buffl.co-Scraper`? </span></p></div>"
       },
       "answers": [
