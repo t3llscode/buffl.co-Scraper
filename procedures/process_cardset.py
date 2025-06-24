@@ -91,7 +91,7 @@ def extract_cardsets(handler, all_cardsets):
         output_dir = 'results/data'
         os.makedirs(output_dir, exist_ok=True)
 
-        if len(total_results) > new_count:
+        if len(total_results) > cardset['cardset-count']:
             total_results = total_results_duplicate_check(total_results)
 
         # Save results to JSON file
@@ -159,7 +159,7 @@ def find_goethe_elements(handler: ActionHandler):
 def extract_card(elements):
     """ len(elements) == 2 """
     
-    picture_hrefs = None
+    picture_hrefs = []
 
     # Extract data from elements with error handling
     try:
@@ -227,7 +227,7 @@ def extract_multiple_choice(handler: ActionHandler, elements):
 
     answer_elements = handler.get_all_by("class", "mcoptions-select-item", timeout=0.5, output = False)
 
-    picture_hrefs = None
+    picture_hrefs = []
 
     answers = []
     for ans in answer_elements:
@@ -543,7 +543,7 @@ def total_results_duplicate_check(total_results):
     
     Search the results for duplicates based on result['card''question''html'] for result in total_results
 
-    If you find duplicates, removve the one where card has the most values which are "" or None
+    If you find duplicates, remove the one where card has the most values which are "" or None
     """
     html_groups = {}
     for result in total_results:
@@ -578,7 +578,7 @@ def total_results_duplicate_check(total_results):
                 count += 1
         
         # Check for pictures
-        if card.get('pictures') is None:
+        if res.get('pictures') is None:
             count += 1
             
         return count
