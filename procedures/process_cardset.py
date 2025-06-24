@@ -71,6 +71,7 @@ def extract_cardsets(handler, all_cardsets):
             for result in results:
                 if result["card"]["hash"] not in all_hashs:
                     total_results.append(result)
+                    all_hashs.append(result["card"]["hash"])
                     new_count += 1
 
             print(f"Extracted new {new_count} cards from the cardset '{cardset['cardset-text']}'.")
@@ -90,10 +91,13 @@ def extract_cardsets(handler, all_cardsets):
         output_dir = 'results/data'
         os.makedirs(output_dir, exist_ok=True)
 
+        if len(total_results) > new_count:
+            total_results = total_results_duplicate_check(total_results)
+
         # Save results to JSON file
         output_path = os.path.join(output_dir, filename)
         with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(results, f, ensure_ascii=False, indent=2)
+            json.dump(total_results, f, ensure_ascii=False, indent=2)
 
         print(f"Saved results to {output_path}")
 
@@ -523,3 +527,60 @@ def extract_and_download_pictures(handler: ActionHandler, rsp, log: bool = False
             print(f"❌ Failed to parse updated JSON: {e}")
             print(f"JSON content (first 500 chars): {updated_rsp_str[:500]}")
         return rsp  # Return original if parsing fails
+
+def total_results_duplicate_check(total_results):
+    """
+    Duplicates have a different hash, this is because there are weird errors which lead to missing fields - but the html is always the same.
+    
+    Search the results for duplicates based on result['card''question''html'] for result in total_results
+
+    If you find duplicates, removve the one where card has the most values which are "" or None
+    """
+    html_groups = {}
+    for result in total_results:
+        try:
+            # Group results by the HTML of the question
+            html = result['card']['question']['html']
+            if html not in html_groups:
+                html_groups[html] = []
+            html_groups[html].append(result)
+        except (KeyError, TypeError):
+            # Handle malformed results by treating them as unique
+            html_groups[id(result)] = [result]
+
+    def count_empty_fields(res):
+        """Counts how many important fields are empty in a result."""
+        card = res.get('card', {})
+        if not card:
+            return float('inf')  # Should be heavily penalized
+
+        count = 0
+        # Check question text
+        if not card.get('question', {}).get('text'):
+            count += 1
+
+        # Check answer text(s)
+        if res.get('type') == 'card':
+            if not card.get('answer', {}).get('text'):
+                count += 1
+        elif res.get('type') == 'multiple-choice':
+            answers = card.get('answers', [])
+            if not answers or all(not ans.get('text') for ans in answers):
+                count += 1
+        
+        # Check for pictures
+        if card.get('pictures') is None:
+            count += 1
+            
+        return count
+
+    final_results = []
+    for group in html_groups.values():
+        if len(group) <= 1:
+            final_results.extend(group)
+        else:
+            # Find the best result (one with the fewest empty fields)
+            best_result = min(group, key=count_empty_fields)
+            final_results.append(best_result)
+
+    return final_results
